@@ -1,0 +1,67 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:13.2-alpine
+    container_name: postgres
+    restart: unless-stopped
+    networks:
+      - database
+    volumes:
+      - ./db/:/docker-entrypoint-initdb.d/
+      - bewise_io_db-data:/var/lib/postgresql/data/
+    env_file: .env
+    healthcheck:
+      test: pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  task1:
+    image: ivr42/bewise.ai.task1:latest
+    container_name: task1
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+
+  task2:
+    image: ivr42/bewise.ai.task2:latest
+    container_name: task2
+    restart: unless-stopped
+    networks:
+      - backend
+      - database
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    networks:
+      - outside
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/templates/default.conf.template
+      - ./nginx/proxy_params:/etc/nginx/proxy_params
+    depends_on:
+      - task1
+      - task2
+    env_file: .env
+
+networks:
+  outside:
+  backend:
+  database:
+    internal: true
+
+volumes:
+  bewise_io_db-data:
